@@ -1,0 +1,67 @@
+# release.yml
+#
+# Goal:
+# - Build and push a Docker image to GitHub Container Registry (GHCR)
+# - Trigger only on pushes to main (or when you create a tag)
+#
+# Why this matters for MLOps:
+# - A built image in a registry is a deployable artifact.
+# - Deploy systems pull images from registries.
+
+name: Release (Push Docker Image)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Set up Python so we can train the model artifact for the Docker build context
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps and train model artifact
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m src.ml.train
+
+      # Login to GHCR using the auto-provided GitHub token
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generate image metadata (tags + labels)
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha
+            type=raw,value=latest
+
+      # Build and push the image to GHCR
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
