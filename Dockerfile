@@ -37,5 +37,5 @@ ENV MODEL_PATH=/app/models/model.joblib
 # Expose the port Uvicorn will listen on
 EXPOSE 8000
 
-# Start the service
-CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use Cloud Run's PORT if provided, fallback to 8000
+CMD ["sh", "-c", "uvicorn src.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
